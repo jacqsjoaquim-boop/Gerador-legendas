@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gerador de Legendas</title>
+<link rel="manifest" href="/manifest.json" />
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Inter, sans-serif;
+    background: #F7F3EA;
+    color: #1A1A1A;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 40px 20px; }
+  .eyebrow { display:flex; align-items:center; gap:8px; margin-bottom: 8px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#7C5CFF; }
+  .eyebrow span { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#7C5CFF; font-family: monospace; }
+  h1 { font-size: 30px; font-weight: 700; line-height: 1.2; margin: 0 0 8px; }
+  p.sub { font-size: 14px; color: #5B5647; margin: 0 0 28px; }
+  .card {
+    background: #fff; border: 2px solid #1A1A1A; border-radius: 16px;
+    padding: 20px; margin-bottom: 24px;
+    box-shadow: 4px 4px 0 0 #1A1A1A;
+  }
+  label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#8A8470; font-family: monospace; margin-bottom:6px; }
+  textarea {
+    width:100%; border:2px solid #EEEBE4; border-radius:12px; padding:10px 12px;
+    font-size:14px; font-family: inherit; resize:none; margin-bottom:16px; outline:none;
+  }
+  textarea:focus { border-color:#7C5CFF; }
+  .tones { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+  .tone-btn {
+    padding:7px 14px; border-radius:999px; border:2px solid #1A1A1A;
+    background:transparent; font-size:14px; font-weight:500; cursor:pointer;
+  }
+  .tone-btn.active { background:#7C5CFF; color:#fff; }
+  button.generate {
+    width:100%; padding:14px; border-radius:12px; border:2px solid #1A1A1A;
+    background:#C6FF3D; font-weight:700; font-size:15px; cursor:pointer;
+  }
+  button.generate:disabled { opacity:0.4; cursor:default; }
+  .error { color:#c0392b; font-size:14px; margin-top:10px; }
+  .result-card {
+    background:#fff; border:2px solid #1A1A1A; border-radius:16px; overflow:hidden;
+    box-shadow:4px 4px 0 0 #1A1A1A; margin-bottom:20px;
+  }
+  .result-header { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #EEEBE4; }
+  .avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#7C5CFF,#C6FF3D); }
+  .result-header span { font-size:14px; font-weight:600; }
+  .fake-image { aspect-ratio:1; background:linear-gradient(135deg, rgba(124,92,255,.1), rgba(198,255,61,.2)); display:flex; align-items:center; justify-content:center; color:rgba(0,0,0,.15); font-size:40px; }
+  .caption-text { padding:12px 16px 16px; font-size:14px; line-height:1.5; white-space:pre-wrap; }
+  .caption-text b { font-weight:600; margin-right:4px; }
+  .copy-btn {
+    width:100%; padding:12px; border:none; border-top:2px solid #1A1A1A;
+    background:#1A1A1A; color:#fff; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .copy-btn.copied { background:#C6FF3D; color:#1A1A1A; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow"><span class="dot"></span><span>Legenda pronta em segundos</span></div>
+  <h1>Descreve o post.<br/>A IA escreve a legenda.</h1>
+  <p class="sub">Cole o que você quer postar, escolhe o tom, e recebe 3 opções prontas pra colar no Instagram.</p>
+
+  <div class="card">
+    <label>Do que é o post?</label>
+    <textarea id="produto" rows="3" placeholder="Ex: bolo de chocolate com brigadeiro, encomendas pra festa de aniversário..."></textarea>
+
+    <label>Tom da legenda</label>
+    <div class="tones" id="tones">
+      <button class="tone-btn active" data-tone="Descontraído">Descontraído</button>
+      <button class="tone-btn" data-tone="Profissional">Profissional</button>
+      <button class="tone-btn" data-tone="Vendedor">Vendedor</button>
+      <button class="tone-btn" data-tone="Inspirador">Inspirador</button>
+      <button class="tone-btn" data-tone="Engraçado">Engraçado</button>
+    </div>
+
+    <button class="generate" id="gerarBtn">✨ Gerar 3 legendas</button>
+    <div class="error" id="errorMsg" style="display:none;"></div>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+  let tomAtual = "Descontraído";
+  const tonesDiv = document.getElementById('tones');
+  tonesDiv.addEventListener('click', (e) => {
+    if (!e.target.classList.contains('tone-btn')) return;
+    document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    tomAtual = e.target.dataset.tone;
+  });
+
+  const gerarBtn = document.getElementById('gerarBtn');
+  const produtoInput = document.getElementById('produto');
+  const errorMsg = document.getElementById('errorMsg');
+  const resultsDiv = document.getElementById('results');
+
+  gerarBtn.addEventListener('click', async () => {
+    const produto = produtoInput.value.trim();
+    if (!produto) return;
+
+    gerarBtn.disabled = true;
+    gerarBtn.textContent = "Gerando...";
+    errorMsg.style.display = "none";
+    resultsDiv.innerHTML = "";
+
+    try {
+      const resp = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ produto, tom: tomAtual })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) throw new Error(data.error || 'Erro ao gerar');
+
+      data.captions.forEach((caption, i) => {
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        card.innerHTML = `
+          <div class="result-header">
+            <div class="avatar"></div>
+            <span>sua.marca</span>
+          </div>
+          <div class="fake-image">📷</div>
+          <div class="caption-text"><b>sua.marca</b>${caption.replace(/</g,'&lt;')}</div>
+          <button class="copy-btn">📋 Copiar legenda</button>
+        `;
+        const copyBtn = card.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(caption).catch(()=>{});
+          copyBtn.textContent = "✓ Copiado!";
+          copyBtn.classList.add('copied');
+          setTimeout(() => {
+            copyBtn.textContent = "📋 Copiar legenda";
+            copyBtn.classList.remove('copied');
+          }, 1800);
+        });
+        resultsDiv.appendChild(card);
+      });
+    } catch (err) {
+      errorMsg.textContent = err.message || "Não consegui gerar agora. Tenta de novo.";
+      errorMsg.style.display = "block";
+    } finally {
+      gerarBtn.disabled = false;
+      gerarBtn.textContent = "✨ Gerar 3 legendas";
+    }
+  });
+</script>
+</body>
+</html>
