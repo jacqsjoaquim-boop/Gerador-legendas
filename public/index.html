@@ -36,6 +36,21 @@
     background:transparent; font-size:14px; font-weight:500; cursor:pointer;
   }
   .tone-btn.active { background:#7C5CFF; color:#fff; }
+
+  .photo-upload {
+    border: 2px dashed #C9C2AA; border-radius: 12px; padding: 16px;
+    text-align: center; margin-bottom: 20px; cursor: pointer; position: relative;
+  }
+  .photo-upload.has-photo { border-style: solid; padding: 0; overflow: hidden; }
+  .photo-upload input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .photo-upload-text { font-size: 13px; color: #8A8470; }
+  .photo-preview { width: 100%; max-height: 240px; object-fit: cover; display:block; }
+  .photo-remove {
+    position:absolute; top:8px; right:8px; background:#1A1A1A; color:#fff;
+    border:none; border-radius:999px; width:28px; height:28px; font-size:14px;
+    cursor:pointer; z-index:2;
+  }
+
   button.generate {
     width:100%; padding:14px; border-radius:12px; border:2px solid #1A1A1A;
     background:#C6FF3D; font-weight:700; font-size:15px; cursor:pointer;
@@ -47,25 +62,38 @@
     box-shadow:4px 4px 0 0 #1A1A1A; margin-bottom:20px;
   }
   .result-header { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #EEEBE4; }
-  .avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#7C5CFF,#C6FF3D); }
+  .avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#7C5CFF,#C6FF3D); overflow:hidden; }
+  .avatar img { width:100%; height:100%; object-fit:cover; }
   .result-header span { font-size:14px; font-weight:600; }
-  .fake-image { aspect-ratio:1; background:linear-gradient(135deg, rgba(124,92,255,.1), rgba(198,255,61,.2)); display:flex; align-items:center; justify-content:center; color:rgba(0,0,0,.15); font-size:40px; }
+  .fake-image { aspect-ratio:1; background:linear-gradient(135deg, rgba(124,92,255,.1), rgba(198,255,61,.2)); display:flex; align-items:center; justify-content:center; color:rgba(0,0,0,.15); font-size:40px; overflow:hidden; }
+  .fake-image img { width:100%; height:100%; object-fit:cover; }
   .caption-text { padding:12px 16px 16px; font-size:14px; line-height:1.5; white-space:pre-wrap; }
   .caption-text b { font-weight:600; margin-right:4px; }
-  .copy-btn {
-    width:100%; padding:12px; border:none; border-top:2px solid #1A1A1A;
-    background:#1A1A1A; color:#fff; font-weight:600; font-size:14px; cursor:pointer;
+  .action-row { display:flex; border-top:2px solid #1A1A1A; }
+  .action-btn {
+    flex:1; padding:12px; font-size:14px; font-weight:600; cursor:pointer; border:none;
+    display:flex; align-items:center; justify-content:center; gap:6px;
   }
+  .copy-btn { background:#1A1A1A; color:#fff; }
   .copy-btn.copied { background:#C6FF3D; color:#1A1A1A; }
+  .share-btn { background:linear-gradient(135deg,#7C5CFF,#C6FF3D); color:#1A1A1A; border-left:2px solid #1A1A1A; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="eyebrow"><span class="dot"></span><span>Legenda pronta em segundos</span></div>
   <h1>Descreve o post.<br/>A IA escreve a legenda.</h1>
-  <p class="sub">Cole o que você quer postar, escolhe o tom, e recebe 3 opções prontas pra colar no Instagram.</p>
+  <p class="sub">Sobe a foto (opcional), descreve o que vai postar, escolhe o tom, e recebe 3 legendas prontas — com botão pra compartilhar direto no Instagram.</p>
 
   <div class="card">
+    <label>Foto do post (opcional)</label>
+    <div class="photo-upload" id="photoUpload">
+      <input type="file" id="photoInput" accept="image/*" />
+      <div class="photo-upload-text" id="photoUploadText">📷 Toque pra escolher uma foto</div>
+      <img id="photoPreview" class="photo-preview" style="display:none;" />
+      <button class="photo-remove" id="photoRemove" style="display:none;">✕</button>
+    </div>
+
     <label>Do que é o post?</label>
     <textarea id="produto" rows="3" placeholder="Ex: bolo de chocolate com brigadeiro, encomendas pra festa de aniversário..."></textarea>
 
@@ -87,6 +115,9 @@
 
 <script>
   let tomAtual = "Descontraído";
+  let photoDataUrl = null;
+  let photoFile = null;
+
   const tonesDiv = document.getElementById('tones');
   tonesDiv.addEventListener('click', (e) => {
     if (!e.target.classList.contains('tone-btn')) return;
@@ -95,10 +126,60 @@
     tomAtual = e.target.dataset.tone;
   });
 
+  const photoInput = document.getElementById('photoInput');
+  const photoUpload = document.getElementById('photoUpload');
+  const photoUploadText = document.getElementById('photoUploadText');
+  const photoPreview = document.getElementById('photoPreview');
+  const photoRemove = document.getElementById('photoRemove');
+
+  photoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    photoFile = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      photoDataUrl = ev.target.result;
+      photoPreview.src = photoDataUrl;
+      photoPreview.style.display = 'block';
+      photoUploadText.style.display = 'none';
+      photoRemove.style.display = 'flex';
+      photoUpload.classList.add('has-photo');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  photoRemove.addEventListener('click', (e) => {
+    e.stopPropagation();
+    photoFile = null;
+    photoDataUrl = null;
+    photoInput.value = '';
+    photoPreview.style.display = 'none';
+    photoUploadText.style.display = 'block';
+    photoRemove.style.display = 'none';
+    photoUpload.classList.remove('has-photo');
+  });
+
   const gerarBtn = document.getElementById('gerarBtn');
   const produtoInput = document.getElementById('produto');
   const errorMsg = document.getElementById('errorMsg');
   const resultsDiv = document.getElementById('results');
+
+  async function shareCaption(caption) {
+    const shareData = { text: caption };
+    if (photoFile && navigator.canShare && navigator.canShare({ files: [photoFile] })) {
+      shareData.files = [photoFile];
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(caption);
+        alert('Legenda copiada! Abre o Instagram e cola na hora de postar.');
+      }
+    } catch (err) {
+      // usuário cancelou o compartilhamento, sem problema
+    }
+  }
 
   gerarBtn.addEventListener('click', async () => {
     const produto = produtoInput.value.trim();
@@ -127,9 +208,12 @@
             <div class="avatar"></div>
             <span>sua.marca</span>
           </div>
-          <div class="fake-image">📷</div>
+          <div class="fake-image">${photoDataUrl ? `<img src="${photoDataUrl}" />` : '📷'}</div>
           <div class="caption-text"><b>sua.marca</b>${caption.replace(/</g,'&lt;')}</div>
-          <button class="copy-btn">📋 Copiar legenda</button>
+          <div class="action-row">
+            <button class="action-btn copy-btn">📋 Copiar</button>
+            <button class="action-btn share-btn">📲 Compartilhar no Instagram</button>
+          </div>
         `;
         const copyBtn = card.querySelector('.copy-btn');
         copyBtn.addEventListener('click', () => {
@@ -137,10 +221,12 @@
           copyBtn.textContent = "✓ Copiado!";
           copyBtn.classList.add('copied');
           setTimeout(() => {
-            copyBtn.textContent = "📋 Copiar legenda";
+            copyBtn.textContent = "📋 Copiar";
             copyBtn.classList.remove('copied');
           }, 1800);
         });
+        const shareBtn = card.querySelector('.share-btn');
+        shareBtn.addEventListener('click', () => shareCaption(caption));
         resultsDiv.appendChild(card);
       });
     } catch (err) {
