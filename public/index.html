@@ -77,10 +77,44 @@
   .copy-btn { background:#1A1A1A; color:#fff; }
   .copy-btn.copied { background:#C6FF3D; color:#1A1A1A; }
   .share-btn { background:linear-gradient(135deg,#7C5CFF,#C6FF3D); color:#1A1A1A; border-left:2px solid #1A1A1A; }
+
+  .gate-wrap {
+    min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 20px;
+  }
+  .gate-card {
+    background:#fff; border:2px solid #1A1A1A; border-radius:16px; padding:28px;
+    box-shadow:4px 4px 0 0 #1A1A1A; max-width:400px; width:100%; text-align:center;
+  }
+  .gate-card h2 { font-size:22px; margin:0 0 8px; }
+  .gate-card p { font-size:14px; color:#5B5647; margin:0 0 20px; }
+  .gate-card input {
+    width:100%; text-align:center; text-transform:uppercase; letter-spacing:2px;
+    border:2px solid #EEEBE4; border-radius:12px; padding:12px; font-size:16px;
+    font-weight:600; margin-bottom:14px; outline:none;
+  }
+  .gate-card input:focus { border-color:#7C5CFF; }
+  .gate-card button {
+    width:100%; padding:13px; border-radius:12px; border:2px solid #1A1A1A;
+    background:#C6FF3D; font-weight:700; font-size:15px; cursor:pointer;
+  }
+  .gate-card button:disabled { opacity:0.5; }
+  .gate-error { color:#c0392b; font-size:13px; margin-top:10px; }
+  .gate-usos { font-size:12px; color:#8A8470; margin-top:12px; font-family: monospace; }
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<div class="gate-wrap" id="gateScreen">
+  <div class="gate-card">
+    <h2>🔒 Acesso ao Gerador</h2>
+    <p>Digite o código que você recebeu na compra</p>
+    <input type="text" id="codeInput" placeholder="LEG-XXXX-XXXX" maxlength="20" />
+    <button id="unlockBtn">Desbloquear</button>
+    <div class="gate-error" id="gateError" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="wrap" id="appScreen" style="display:none;">
   <div class="eyebrow"><span class="dot"></span><span>Legenda pronta em segundos</span></div>
   <h1>Descreve o post.<br/>A IA escreve a legenda.</h1>
   <p class="sub">Sobe a foto (opcional), descreve o que vai postar, escolhe o tom, e recebe 3 legendas prontas — com botão pra compartilhar direto no Instagram.</p>
@@ -114,6 +148,48 @@
 </div>
 
 <script>
+  // ---- Controle de acesso por código ----
+  const gateScreen = document.getElementById('gateScreen');
+  const appScreen = document.getElementById('appScreen');
+  const codeInput = document.getElementById('codeInput');
+  const unlockBtn = document.getElementById('unlockBtn');
+  const gateError = document.getElementById('gateError');
+
+  // Se já desbloqueou antes nesse navegador, pula a tela de código
+  if (localStorage.getItem('acessoLiberado') === 'sim') {
+    gateScreen.style.display = 'none';
+    appScreen.style.display = 'block';
+  }
+
+  unlockBtn.addEventListener('click', async () => {
+    const code = codeInput.value.trim();
+    if (!code) return;
+    unlockBtn.disabled = true;
+    unlockBtn.textContent = 'Verificando...';
+    gateError.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/validate-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) throw new Error(data.error || 'Código inválido');
+
+      localStorage.setItem('acessoLiberado', 'sim');
+      gateScreen.style.display = 'none';
+      appScreen.style.display = 'block';
+    } catch (err) {
+      gateError.textContent = err.message;
+      gateError.style.display = 'block';
+    } finally {
+      unlockBtn.disabled = false;
+      unlockBtn.textContent = 'Desbloquear';
+    }
+  });
+
   let tomAtual = "Descontraído";
   let photoDataUrl = null;
   let photoFile = null;
@@ -205,7 +281,7 @@
         card.className = 'result-card';
         card.innerHTML = `
           <div class="result-header">
-            <div class="avatar"></div>
+            <div class="avatar">${photoDataUrl ? '' : ''}</div>
             <span>sua.marca</span>
           </div>
           <div class="fake-image">${photoDataUrl ? `<img src="${photoDataUrl}" />` : '📷'}</div>
